@@ -1,0 +1,4 @@
+project_id = "gym-tracker"
+
+[functions.google-sheets-import]
+verify_jwt = true

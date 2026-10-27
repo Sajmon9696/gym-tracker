@@ -1,3 +1,4 @@
+import { PublicInformationLinks } from '@/components/public-information-page';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -32,7 +33,7 @@ export default function HomeScreen() {
         <Text style={styles.title}>Trenuj po swojemu.</Text>
         <Text style={styles.subtitle}>Wybierz, co chcesz dziś zrobić.</Text>
 
-        {profile?.role === 'trainer' && <Pressable
+        {profile?.id === session?.user.id && profile?.role === 'trainer' && <Pressable
           accessibilityRole="button"
           onPress={() => router.push('/trainees')}
           style={({ pressed }) => [styles.option, styles.traineesOption, pressed && styles.pressed]}>
@@ -43,6 +44,19 @@ export default function HomeScreen() {
           <Text style={styles.optionTitle}>Podopieczni</Text>
           <Text style={styles.optionHint}>Otwórz profile podopiecznych, ich plany i raporty z mikrocykli.</Text>
           <Text style={[styles.optionAction, styles.traineesIcon]}>ZOBACZ PODOPIECZNYCH</Text>
+        </Pressable>}
+
+        {profile?.id === session?.user.id && profile?.role === 'trainer' && <Pressable
+          accessibilityRole="button"
+          onPress={() => router.push('/exercise-atlas' as never)}
+          style={({ pressed }) => [styles.option, styles.traineesOption, pressed && styles.pressed]}>
+          <View style={styles.optionTop}>
+            <View style={[styles.optionIcon, styles.secondaryIcon]}><Text style={[styles.optionIconText, styles.traineesIcon]}>▤</Text></View>
+            <Text style={[styles.arrow, styles.traineesIcon]}>↗</Text>
+          </View>
+          <Text style={styles.optionTitle}>Atlas ćwiczeń</Text>
+          <Text style={styles.optionHint}>Przeglądaj technikę ćwiczeń i zarządzaj wspólnym katalogiem.</Text>
+          <Text style={[styles.optionAction, styles.traineesIcon]}>OTWÓRZ ATLAS</Text>
         </Pressable>}
 
         <Pressable
@@ -56,6 +70,19 @@ export default function HomeScreen() {
           <Text style={[styles.optionTitle, styles.createTitle]}>Utwórz nowy plan</Text>
           <Text style={[styles.optionHint, styles.createHint]}>Ułóż dni treningowe, wybierz ćwiczenia i ustaw swój cel.</Text>
           <Text style={[styles.optionAction, styles.createAction]}>STWÓRZ PLAN</Text>
+        </Pressable>
+
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => router.push({ pathname: '/plans', params: { action: 'build' } })}
+          style={({ pressed }) => [styles.option, pressed && styles.pressed]}>
+          <View style={styles.optionTop}>
+            <View style={[styles.optionIcon, styles.secondaryIcon]}><Text style={[styles.optionIconText, styles.secondaryIconText]}>↗</Text></View>
+            <Text style={styles.arrow}>↗</Text>
+          </View>
+          <Text style={styles.optionTitle}>Buduj plan w biegu</Text>
+          <Text style={styles.optionHint}>Zapisz dzisiejszy trening jako pierwszy dzień, a plan uzupełniaj przy kolejnych wizytach.</Text>
+          <Text style={styles.optionAction}>DODAJ TRENING DO PLANU</Text>
         </Pressable>
 
         <Pressable
@@ -85,6 +112,7 @@ export default function HomeScreen() {
         </Pressable>
 
         <Text style={styles.footer}>{isSupabaseConfigured ? session ? 'Twoje dane synchronizują się przez Supabase.' : 'Zaloguj się, aby korzystać ze swojego konta.' : 'Dane są zapisywane tylko na tym urządzeniu.'}</Text>
+        <PublicInformationLinks />
       </ScrollView>
     </SafeAreaView>
   );
@@ -127,5 +155,6 @@ const styles = StyleSheet.create({
   footer: { color: colors.muted, fontSize: 11, lineHeight: 16, textAlign: 'center', paddingTop: 14 },
   pressed: { opacity: 0.82 },
 });
+
 
 

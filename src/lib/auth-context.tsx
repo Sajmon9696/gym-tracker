@@ -1,5 +1,6 @@
+import { rememberOfflineIdentity } from '@/lib/offline-auth-identity';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type PropsWithChildren } from 'react';
-import { Platform } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import * as AuthSession from 'expo-auth-session';
 import * as WebBrowser from 'expo-web-browser';
 
@@ -34,8 +35,10 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
   useEffect(() => {
     let active = true;
-    const subscription = supabase?.auth.onAuthStateChange((_event, nextSession) => {
+    const subscription = supabase?.auth.onAuthStateChange((event, nextSession) => {
       if (!active) return;
+      if (nextSession) void rememberOfflineIdentity({ user: { id: nextSession.user.id, email: nextSession.user.email ?? '' } }).catch(() => {});
+      else if (event === 'SIGNED_OUT') void rememberOfflineIdentity(null).catch(() => {});
       setSession(nextSession ? { user: { id: nextSession.user.id, email: nextSession.user.email ?? '' } } : null);
     }).data.subscription;
     getStoredSession()
@@ -43,6 +46,19 @@ export function AuthProvider({ children }: PropsWithChildren) {
       .catch(() => { if (active) setSession(null); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; subscription?.unsubscribe(); };
+  }, []);
+
+  // Po powrocie z tła odświeżamy sesję, zamiast czekać na nieudany zapis treningu.
+  useEffect(() => {
+    if (Platform.OS === 'web' || !supabase) return;
+    const client = supabase;
+    const updateRefresh = (state: string) => {
+      if (state === 'active') client.auth.startAutoRefresh();
+      else client.auth.stopAutoRefresh();
+    };
+    updateRefresh(AppState.currentState);
+    const subscription = AppState.addEventListener('change', updateRefresh);
+    return () => { subscription.remove(); client.auth.stopAutoRefresh(); };
   }, []);
 
   const signInWithGoogle = useCallback(async () => {

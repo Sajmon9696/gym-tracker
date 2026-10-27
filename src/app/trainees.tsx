@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/auth-context';
 import { getLocalProfile, getLocalTrainerResults, type LocalProfile } from '@/lib/local-accounts';
 import { isSupabaseConfigured } from '@/lib/supabase';
 import type { TrainingPlan, TrainingReport, TrainingSession } from '@/lib/plans';
+import { formatSetResult } from '@/lib/training-progression';
 import { progresTheme } from '@/constants/progres-theme';
 
 const c = { bg: progresTheme.background, panel: progresTheme.panel, raised: progresTheme.raised, line: progresTheme.line, text: progresTheme.text, muted: progresTheme.muted, accent: progresTheme.accent, ink: progresTheme.accentInk };
@@ -99,9 +100,23 @@ function PlanDetail({ plan, traineeId, trainerId, reports, onBack }: { plan: Tra
     <Pressable accessibilityRole="button" onPress={onBack} style={s.backToPlans}><Text style={s.backText}>‹  Lista planów</Text></Pressable>
     <View style={s.planDetailHead}><Text style={s.sectionTitle}>{plan.name}</Text></View>
     {plan.assignedTo === traineeId && <Text style={s.assignedLabel}>PLAN PRZYPISANY PRZEZ CIEBIE</Text>}
-    {plan.days.map((day) => <View key={day.id} style={s.dayBlock}><Text style={s.dayName}>{day.name}</Text>{day.exercises.map((exercise) => <Text key={exercise.id} style={s.exercise}>{exercise.name} · {exercise.setTargets?.length ? exercise.setTargets.map((set, index) => `${index + 1}: ${set.targetWeight} kg · ${set.repsMin}–${set.repsMax} powt.`).join('  ·  ') : `${exercise.sets} serie · ${exercise.repsMin}–${exercise.repsMax} powt. · ${exercise.targetWeight} kg`}</Text>)}</View>)}
+    {plan.days.map((day) => <View key={day.id} style={s.dayBlock}><Text style={s.dayName}>{day.name}</Text>{day.exercises.map((exercise) => {
+      const metric = exercise.metric ?? 'load';
+      const describeTarget = (set: { targetWeight: number; repsMin: number; repsMax: number; bandColor?: string; assistanceLevel?: string }) => metric === 'time'
+        ? `${set.repsMin}–${set.repsMax} s`
+        : metric === 'distance'
+          ? `${set.repsMin}–${set.repsMax} m · ${set.targetWeight} kg`
+          : metric === 'band'
+          ? `${set.bandColor ?? exercise.bandColor ?? 'guma'} · ${set.targetWeight} kg · pomoc ${set.assistanceLevel ?? exercise.assistanceLevel ?? 'brak'} · ${set.repsMin}–${set.repsMax} powt.`
+          : `${set.targetWeight} kg · ${set.repsMin}–${set.repsMax} powt.`;
+      const summary = exercise.setTargets?.length
+        ? exercise.setTargets.map((set, index) => `${index + 1}: ${describeTarget(set)}`).join('  ·  ')
+        : `${exercise.sets} serie · ${describeTarget({ targetWeight: exercise.targetWeight, repsMin: exercise.repsMin, repsMax: exercise.repsMax })}`;
+      return <Text key={exercise.id} style={s.exercise}>{exercise.name} · {summary}</Text>;
+    })}</View>)}
     {!plan.completedAt && <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/plans', params: { action: 'edit', traineeId, planId: plan.id } })} style={s.editButton}><Text style={s.editButtonText}>EDYTUJ PLAN  ↗</Text></Pressable>}
     {!plan.completedAt && <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/plans', params: { action: 'realize', traineeId, planId: plan.id } })} style={s.realizeButton}><Text style={s.realizeButtonText}>UZUPEŁNIJ TRENING ZA PODOPIECZNEGO  ↗</Text></Pressable>}
+    {!plan.completedAt && plan.ownerId === trainerId && <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/plans', params: { action: 'complete', traineeId, planId: plan.id } })} style={s.editButton}><Text style={s.editButtonText}>ZAKOŃCZ PLAN</Text></Pressable>}
     <Text style={s.sectionTitle}>Raporty z mikrocykli · {planReports.length}</Text>
     {planReports.length === 0 ? <Text style={s.muted}>Raporty podopiecznego pojawią się tutaj po wysłaniu mikrocyklu.</Text> : planReports.map((report) => <ReportCard key={report.id} report={report} plan={plan}/>)}
   </View>;
@@ -112,7 +127,7 @@ function ReportCard({ report, plan }: { report: TrainingReport; plan: TrainingPl
   return <View style={s.reportCard}>
     <Text style={s.reportTitle}>Mikrocykl · {date}</Text>
     {report.sessions.map((session) => {
-      const day = plan.days.find((item) => item.id === session.dayId);
+      const day = session.targetDay ?? session.planSnapshot?.days.find((item) => item.id === session.dayId) ?? plan.days.find((item) => item.id === session.dayId);
       return <View key={session.id} style={s.reportWorkout}>
         <Text style={s.reportDay}>{day?.name ?? 'Dzień treningowy'}</Text>
         {session.skipped
@@ -121,7 +136,8 @@ function ReportCard({ report, plan }: { report: TrainingReport; plan: TrainingPl
           const comment = report.exerciseComments[`${session.id}:${exercise.exerciseId}`]?.trim();
           return <View key={exercise.exerciseId} style={s.reportExercise}>
             <Text style={s.reportExerciseName}>{exercise.name ?? 'Ćwiczenie'}</Text>
-            <Text style={s.reportExerciseSets}>{exercise.sets.map((set) => `${set.weight} kg × ${set.reps}`).join('  ·  ')}</Text>
+            {exercise.skipped && <Text style={s.reportExerciseSets}>Pominięte · zapisano {exercise.sets.length} {exercise.sets.length === 1 ? 'serię' : 'serii'}</Text>}
+            <Text style={s.reportExerciseSets}>{exercise.sets.map((set) => formatSetResult(set, exercise.metric ?? day?.exercises.find((item) => item.id === exercise.exerciseId)?.metric ?? 'load', day?.exercises.find((item) => item.id === exercise.exerciseId))).join('  ·  ')}</Text>
             {comment ? <Text style={s.reportCommentText}>„{comment}”</Text> : null}
           </View>;
         })}

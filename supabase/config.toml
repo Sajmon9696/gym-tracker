@@ -1,4 +1,15 @@
 project_id = "gym-tracker"
 
+[auth]
+additional_redirect_urls = [
+  "http://localhost:8081/account",
+  "exp://**/--/account",
+  "https://*.ngrok-free.dev/account",
+  "https://sajmon96-gym-tracker--ws3225udky.expo.app/account",
+  "https://sajmon96-gym-tracker.expo.app/account",
+  "gymtracker://account"
+]
+
 [functions.google-sheets-import]
 verify_jwt = true
+

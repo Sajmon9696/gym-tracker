@@ -1,3 +1,6 @@
+import { cachedTrainingRead, clearTrainingCache, isConnectionError } from '@/lib/offline-training-cache';
+import { readOfflineIdentity, rememberOfflineIdentity } from '@/lib/offline-auth-identity';
+import { cachedWorkoutSessions, clearWorkoutJournal } from '@/lib/workout-journal';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ASSIGNED_PLANS_KEY, PLANS_KEY, SESSIONS_KEY, type TrainingPlan, type TrainingReport, type TrainingSession, userStorageKey } from '@/lib/plans';
 import { WORKOUTS_KEY } from '@/lib/workouts';
@@ -65,8 +68,11 @@ async function writeAccounts(accounts: StoredAccount[]) {
 export async function getStoredSession() {
   if (isSupabaseConfigured && supabase) {
     const { data, error } = await supabase.auth.getSession();
+    if (error && isConnectionError(error)) return readOfflineIdentity();
     if (error) throw error;
-    return data.session ? { user: { id: data.session.user.id, email: data.session.user.email ?? '' } } : null;
+    const identity = data.session ? { user: { id: data.session.user.id, email: data.session.user.email ?? '' } } : null;
+    await rememberOfflineIdentity(identity).catch(() => {});
+    return identity;
   }
   const value = await AsyncStorage.getItem(ACTIVE_ACCOUNT_KEY);
   return value ? JSON.parse(value) as LocalSession : null;
@@ -143,23 +149,6 @@ export async function signOutLocalAccount() {
   await AsyncStorage.removeItem(ACTIVE_ACCOUNT_KEY);
 }
 
-export async function clearLegacyLocalData() {
-  const accounts = await readAccounts();
-  const ids = new Set(accounts.map((account) => account.id));
-  const rawLocalSession = await AsyncStorage.getItem(ACTIVE_ACCOUNT_KEY);
-  if (rawLocalSession) {
-    try {
-      const localSession = JSON.parse(rawLocalSession) as LocalSession;
-      if (localSession.user?.id) ids.add(localSession.user.id);
-    } catch { /* Ignore an invalid legacy session value while cleaning local data. */ }
-  }
-  const keys = new Set([ACCOUNTS_KEY, ACTIVE_ACCOUNT_KEY, ASSIGNED_PLANS_KEY, PLANS_KEY, SESSIONS_KEY, WORKOUTS_KEY]);
-  for (const id of ids) {
-    for (const key of [PLANS_KEY, SESSIONS_KEY, WORKOUTS_KEY]) keys.add(userStorageKey(key, id));
-  }
-  await AsyncStorage.multiRemove([...keys]);
-}
-
 export async function deleteAccountData(userId: string) {
   if (isSupabaseConfigured && supabase) {
     const { error } = await supabase.functions.invoke('delete-account', { method: 'POST' });
@@ -196,17 +185,19 @@ export async function deleteAccountData(userId: string) {
     }
   }
 
+  await clearWorkoutJournal(userId);
+  await clearTrainingCache(userId);
   const accountRows = await readAccounts();
   await writeAccounts(accountRows.filter((account) => account.id !== userId));
   const localKeys = [userStorageKey(PLANS_KEY, userId), userStorageKey(SESSIONS_KEY, userId), userStorageKey(WORKOUTS_KEY, userId)];
   await AsyncStorage.multiRemove(localKeys);
 }
 
-export async function getLocalProfile(id: string) {
+async function read_getLocalProfile(id: string) {
   if (isSupabaseConfigured && supabase) {
     const { data, error } = await supabase.from('profiles').select('id, full_name, role, trainer_code').eq('id', id).maybeSingle();
     if (error) throw error;
-    return data ? { ...data, email: (await supabase.auth.getUser()).data.user?.email ?? '', trainer_id: null } as LocalProfile : null;
+    return data ? { ...data, email: (await supabase.auth.getSession()).data.session?.user.email ?? '', trainer_id: null } as LocalProfile : null;
   }
   const account = (await readAccounts()).find((item) => item.id === id);
   if (!account) return null;
@@ -214,7 +205,7 @@ export async function getLocalProfile(id: string) {
   return profile;
 }
 
-export async function getConnectedProfiles(profile: LocalProfile) {
+async function read_getConnectedProfiles(profile: LocalProfile) {
   if (isSupabaseConfigured && supabase) {
     const relationColumn = profile.role === 'trainer' ? 'trainee_id' : 'trainer_id';
     const ownColumn = profile.role === 'trainer' ? 'trainer_id' : 'trainee_id';
@@ -329,7 +320,7 @@ export async function getLocalTrainerResults(trainerId: string) {
   }));
 }
 
-export async function getLocalTraineeTrainingDataForTrainer(trainerId: string, traineeId: string) {
+async function read_getLocalTraineeTrainingDataForTrainer(trainerId: string, traineeId: string) {
   if (isSupabaseConfigured && supabase) {
     const { data: relation, error: relationError } = await supabase.from('trainer_clients').select('trainee_id').eq('trainer_id', trainerId).eq('trainee_id', traineeId).maybeSingle();
     if (relationError) throw relationError;
@@ -376,7 +367,7 @@ async function saveCloudPlan(userId: string, plan: TrainingPlan) {
   if (error) throw error;
 }
 
-export async function loadUserTrainingData(userId: string) {
+async function read_loadUserTrainingData(userId: string) {
   if (isSupabaseConfigured && supabase) {
     const [{ data: planRows, error: planError }, { data: sessionRows, error: sessionError }, { data: reportRows, error: reportError }] = await Promise.all([
       supabase.from('training_plans').select('plan_data').or(`owner_id.eq.${userId},assigned_to.eq.${userId}`),
@@ -445,6 +436,7 @@ export async function deleteUserPlan(userId: string, planId: string) {
 }
 
 export async function saveUserSessions(userId: string, sessions: TrainingSession[]) {
+  if (!sessions.length && isSupabaseConfigured) return;
   if (isSupabaseConfigured && supabase) {
     const { error } = await supabase.from('training_sessions').upsert(sessions.map((item) => ({ id: item.id, plan_id: item.planId, trainee_id: userId, session_data: item, completed_at: item.completedAt })));
     if (error) throw error;
@@ -472,4 +464,26 @@ export async function saveTrainingReport(report: TrainingReport) {
   const raw = await AsyncStorage.getItem(TRAINING_REPORTS_KEY);
   const reports = raw ? JSON.parse(raw) as TrainingReport[] : [];
   await AsyncStorage.setItem(TRAINING_REPORTS_KEY, JSON.stringify([report, ...reports]));
+}
+
+export async function getLocalProfile(id: string) {
+  const actor = (await supabase?.auth.getSession())?.data.session?.user.id ?? id;
+  return isSupabaseConfigured ? cachedTrainingRead(`profile:${actor}:${id}`, () => read_getLocalProfile(id)) : read_getLocalProfile(id);
+}
+export async function getConnectedProfiles(profile: LocalProfile) {
+  return isSupabaseConfigured ? cachedTrainingRead(`connections:${profile.id}:${profile.role}`, () => read_getConnectedProfiles(profile)) : read_getConnectedProfiles(profile);
+}
+export async function loadUserTrainingData(userId: string) {
+  const data = isSupabaseConfigured ? await cachedTrainingRead(`training:${userId}`, () => read_loadUserTrainingData(userId)) : await read_loadUserTrainingData(userId);
+  const pending = await cachedWorkoutSessions({ actorId: userId, ownerId: userId });
+  const merged = new Map(data.sessions.map((entry) => [entry.id, entry]));
+  pending.forEach((entry) => merged.set(entry.id, entry));
+  return { ...data, sessions: [...merged.values()].sort((a, b) => b.completedAt.localeCompare(a.completedAt)) };
+}
+export async function getLocalTraineeTrainingDataForTrainer(trainerId: string, traineeId: string) {
+  const data = isSupabaseConfigured ? await cachedTrainingRead(`coached:${trainerId}:${traineeId}`, () => read_getLocalTraineeTrainingDataForTrainer(trainerId, traineeId)) : await read_getLocalTraineeTrainingDataForTrainer(trainerId, traineeId);
+  const pending = await cachedWorkoutSessions({ actorId: trainerId, ownerId: traineeId });
+  const merged = new Map(data.sessions.map((entry) => [entry.id, entry]));
+  pending.forEach((entry) => merged.set(entry.id, entry));
+  return { ...data, sessions: [...merged.values()] };
 }

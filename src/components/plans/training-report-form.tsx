@@ -1,7 +1,7 @@
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { progresTheme as c } from '@/constants/progres-theme';
-import { getReportCommentKey } from '@/lib/training-progression';
+import { formatSetResult, getReportCommentKey } from '@/lib/training-progression';
 import type { TrainingPlan, TrainingSession } from '@/lib/plans';
 
 type Props = {
@@ -20,7 +20,7 @@ export default function TrainingReportForm({ plan, sessions, comments, saving, o
     <Text style={s.title}>Podsumowanie mikrocyklu.</Text>
     <Text style={s.subtitle}>Sprawdź wykonane treningi i dodaj komentarz przy ćwiczeniach, które chcesz omówić z trenerem.</Text>
     {sessions.map((session) => {
-      const day = plan.days.find((item) => item.id === session.dayId);
+      const day = session.targetDay ?? session.planSnapshot?.days.find((item) => item.id === session.dayId) ?? plan.days.find((item) => item.id === session.dayId);
       const date = new Intl.DateTimeFormat('pl-PL', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }).format(new Date(session.completedAt));
       return <View key={session.id} style={s.workout}>
         <Text style={s.dayName}>{day?.name ?? 'Dzień treningowy'}</Text>
@@ -29,9 +29,11 @@ export default function TrainingReportForm({ plan, sessions, comments, saving, o
           ? <View style={s.skipped}><Text style={s.skippedTitle}>NIEWYKONANY · DZIEŃ POMINIĘTY</Text><Text style={s.meta}>Ten dzień został pominięty i nie zawiera wykonanych ćwiczeń.</Text></View>
           : session.exercises.map((exercise) => {
             const key = getReportCommentKey(session.id, exercise.exerciseId);
+            const plannedExercise = day?.exercises.find((item) => item.id === exercise.exerciseId);
             return <View key={exercise.exerciseId} style={s.exercise}>
-              <Text style={s.exerciseName}>{exercise.name ?? day?.exercises.find((item) => item.id === exercise.exerciseId)?.name ?? 'Ćwiczenie'}</Text>
-              <Text style={s.meta}>{exercise.sets.map((set) => `${set.weight} kg × ${set.reps}`).join('  ·  ')}</Text>
+              <Text style={s.exerciseName}>{exercise.name ?? plannedExercise?.name ?? 'Ćwiczenie'}</Text>
+              {exercise.skipped && <Text style={s.meta}>POMINIĘTE · ZAPISANO {exercise.sets.length} {exercise.sets.length === 1 ? 'SERIĘ' : 'SERII'}</Text>}
+              <Text style={s.meta}>{exercise.sets.map((set) => formatSetResult(set, exercise.metric ?? plannedExercise?.metric ?? 'load', plannedExercise)).join('  ·  ')}</Text>
               <TextInput accessibilityLabel={`Komentarz do ${exercise.name ?? 'ćwiczenia'}`} multiline onChangeText={(value) => onCommentChange(key, value)} placeholder="Dodaj komentarz do ćwiczenia (opcjonalnie)" placeholderTextColor={c.muted} style={s.comment} textAlignVertical="top" value={comments[key] ?? ''} />
             </View>;
           })}

@@ -1,10 +1,11 @@
+import { PublicInformationLinks } from '@/components/public-information-page';
 import { useEffect, useState } from 'react';
 import { router } from 'expo-router';
 import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAuth } from '@/lib/auth-context';
-import { clearLegacyLocalData, connectLocalTraineeToTrainer, getConnectedProfiles, getLocalProfile, type AccountRole, type LocalProfile } from '@/lib/local-accounts';
+import { connectLocalTraineeToTrainer, getConnectedProfiles, getLocalProfile, type AccountRole, type LocalProfile } from '@/lib/local-accounts';
 import { isSupabaseConfigured } from '@/lib/supabase';
 import { progresTheme } from '@/constants/progres-theme';
 import { getPasswordProblem, isValidEmail, normalizeEmail } from '@/lib/auth-validation';
@@ -111,28 +112,6 @@ export default function AccountScreen() {
     ]);
   }
 
-  async function removeOldLocalData() {
-    try {
-      await clearLegacyLocalData();
-      setMessage('Usunięto stare lokalne konta, plany i historię z tego urządzenia. Konto Supabase pozostało aktywne.');
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Nie udało się usunąć starych danych lokalnych.');
-    }
-  }
-
-  function confirmRemoveOldLocalData() {
-    const title = 'Usunąć stare dane lokalne?';
-    const description = 'Z tego urządzenia zostaną usunięte stare lokalne konta, plany i historia treningów. Konto i dane w Supabase pozostaną bez zmian.';
-    if (Platform.OS === 'web') {
-      if (typeof window !== 'undefined' && window.confirm(`${title}\n\n${description}`)) void removeOldLocalData();
-      return;
-    }
-    Alert.alert(title, description, [
-      { text: 'Anuluj', style: 'cancel' },
-      { text: 'Usuń lokalne dane', style: 'destructive', onPress: () => { void removeOldLocalData(); } },
-    ]);
-  }
-
   return <SafeAreaView edges={['top']} style={s.safe}>
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={s.flex}>
       <ScrollView automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'} contentContainerStyle={s.content} keyboardDismissMode="none" keyboardShouldPersistTaps="always" showsVerticalScrollIndicator={false}>
@@ -148,7 +127,6 @@ export default function AccountScreen() {
             <Pressable accessibilityRole="button" onPress={() => router.push('/trainees')} style={s.profileLink}><Text style={s.profileLinkText}>PRZEJDŹ DO PROFILI PODOPIECZNYCH  ↗</Text></Pressable>
           </View>}
           <View style={s.card}><Text style={s.cardTitle}>{isSupabaseConfigured ? 'Wspólne dane' : 'Działanie lokalne'}</Text><Text style={s.body}>{isSupabaseConfigured ? 'Konto, plany i wyniki są synchronizowane przez Supabase i będą dostępne po zalogowaniu na innym urządzeniu.' : 'Konta, plany i wyniki są przechowywane tylko na tym urządzeniu.'}</Text></View>
-          {isSupabaseConfigured && <View style={s.card}><Text style={s.cardTitle}>Stare konto lokalne</Text><Text style={s.body}>Usuń stare konta, plany i historię zapisane wyłącznie na tym urządzeniu. Konto Supabase i dane w chmurze pozostaną bez zmian.</Text><Pressable accessibilityRole="button" disabled={busy} onPress={confirmRemoveOldLocalData} style={s.dangerButton}><Text style={s.dangerButtonText}>USUŃ STARE DANE LOKALNE</Text></Pressable></View>}
           <Pressable disabled={busy} onPress={handleSignOut} style={s.secondary}><Text style={s.secondaryText}>{busy ? '...' : 'WYLOGUJ SIĘ'}</Text></Pressable>
           <View style={s.deleteAccountCard}><Text style={s.cardTitle}>Usuwanie konta</Text><Text style={s.body}>{isSupabaseConfigured ? 'Usunie konto oraz wszystkie powiązane plany i wyniki z Supabase.' : 'Usunie konto i jego plany oraz wyniki z tego urządzenia.'} Tej operacji nie można cofnąć.</Text><Pressable accessibilityRole="button" disabled={busy} onPress={confirmDeleteAccount} style={[s.deleteAccountButton, busy && s.disabled]}><Text style={s.deleteAccountButtonText}>{busy ? 'USUWANIE…' : 'USUŃ KONTO NA STAŁE'}</Text></Pressable></View>
         </> : <>
@@ -163,17 +141,18 @@ export default function AccountScreen() {
             <Text style={s.passwordHint}>Użyj długiej frazy, np. kilku niepowiązanych słów. Nie musisz dodawać specjalnych znaków ani cyfr.</Text>
             <Field autoCapitalize="none" autoComplete="new-password" autoCorrect={false} label="POWTÓRZ HASŁO" onChangeText={setConfirmPassword} placeholder="Wpisz hasło ponownie" secureTextEntry value={confirmPassword}/>
           </>}
+          <Text style={s.localHint}>Bezpłatne testy dla osób pełnoletnich (18+). Zasady i informacje o danych znajdziesz w regulaminie i polityce prywatności poniżej.</Text>
           <Text style={s.localHint}>{isSupabaseConfigured ? (formMode === 'sign-up' ? 'Wyślemy link potwierdzający na ten adres e-mail.' : 'Zaloguj się adresem e-mail przypisanym do konta Progres.') : 'To konto działa tylko w tej instalacji aplikacji.'}</Text>
           {isSupabaseConfigured && <>
             <View style={s.separator}><View style={s.separatorLine}/><Text style={s.separatorText}>LUB</Text><View style={s.separatorLine}/></View>
             <Pressable accessibilityRole="button" disabled={busy} onPress={handleGoogleSignIn} style={[s.googleButton, busy && s.disabled]}><Text style={s.googleButtonText}>{busy ? 'ŁĄCZĘ Z GOOGLE…' : 'KONTYNUUJ Z GOOGLE'}</Text></Pressable>
             <Text style={s.googleHint}>Nowe konto Google otrzyma profil osoby trenującej. Zweryfikowany adres zgodny z istniejącym kontem Progres zostanie połączony z tym profilem. Nowe konto trenera utwórz przez e-mail.</Text>
           </>}
-          {isSupabaseConfigured && <Pressable accessibilityRole="button" onPress={confirmRemoveOldLocalData} style={s.clearLocalLink}><Text style={s.clearLocalLinkText}>USUŃ STARE LOKALNE KONTO I DANE Z TEGO URZĄDZENIA</Text></Pressable>}
           <Pressable disabled={busy} onPress={submitAuth} style={[s.primary, busy && s.disabled]}><Text style={s.primaryText}>{busy ? 'CHWILA…' : formMode === 'sign-up' ? 'UTWÓRZ KONTO' : 'ZALOGUJ SIĘ'}</Text></Pressable>
           <Pressable onPress={() => { setFormMode(formMode === 'sign-up' ? 'sign-in' : 'sign-up'); setMessage(''); }} style={s.switchMode}><Text style={s.switchModeText}>{formMode === 'sign-up' ? 'Masz konto? Zaloguj się.' : 'Nie masz konta? Zarejestruj się.'}</Text></Pressable>
         </>}
         {message ? <Text accessibilityLiveRegion="polite" style={s.message}>{message}</Text> : null}
+        <PublicInformationLinks />
       </ScrollView>
     </KeyboardAvoidingView>
   </SafeAreaView>;
@@ -190,7 +169,6 @@ const s = StyleSheet.create({
   card: { backgroundColor: c.panel, borderColor: c.line, borderWidth: 1, borderRadius: 16, padding: 16, marginVertical: 8 }, cardTitle: { color: c.text, fontSize: 16, fontWeight: '800', marginBottom: 8 }, cardLabel: { color: c.muted, fontSize: 9, letterSpacing: 1, fontWeight: '800' }, body: { color: c.muted, fontSize: 12, lineHeight: 19, marginTop: 7 }, trainerCode: { color: c.accent, fontSize: 28, letterSpacing: 3, fontWeight: '900', marginTop: 8 }, profileLink: { minHeight: 40, alignSelf: 'flex-start', justifyContent: 'center', paddingHorizontal: 11, marginTop: 12, borderRadius: 9, backgroundColor: c.raised }, profileLinkText: { color: c.accent, fontSize: 9, letterSpacing: 0.6, fontWeight: '900' },
   field: { marginTop: 12 }, label: { color: c.muted, fontSize: 9, letterSpacing: 1, fontWeight: '800', marginBottom: 6 }, input: { color: c.text, height: 47, borderRadius: 10, backgroundColor: c.raised, paddingHorizontal: 12, fontSize: 13, borderWidth: 1, borderColor: c.line }, roleChoices: { flexDirection: 'row', gap: 8, marginBottom: 3 }, roleChoice: { flex: 1, minHeight: 42, borderRadius: 10, borderWidth: 1, borderColor: c.line, backgroundColor: c.panel, alignItems: 'center', justifyContent: 'center' }, roleChoiceSelected: { backgroundColor: c.accent, borderColor: c.accent }, roleChoiceText: { color: c.muted, fontSize: 9, letterSpacing: 0.6, fontWeight: '900' }, roleChoiceTextSelected: { color: c.ink },
   primary: { minHeight: 49, borderRadius: 11, backgroundColor: c.accent, alignItems: 'center', justifyContent: 'center', marginTop: 12, paddingHorizontal: 12 }, primaryText: { color: c.ink, fontSize: 10, letterSpacing: 0.9, fontWeight: '900', textAlign: 'center' }, secondary: { minHeight: 44, borderWidth: 1, borderColor: c.line, borderRadius: 10, alignItems: 'center', justifyContent: 'center', marginTop: 13 }, secondaryText: { color: c.muted, fontSize: 10, fontWeight: '800', letterSpacing: 0.8 }, switchMode: { paddingVertical: 16, alignItems: 'center' }, switchModeText: { color: c.accent, fontSize: 12, fontWeight: '700' }, localHint: { color: c.muted, fontSize: 11, lineHeight: 16, marginTop: 12 }, passwordHint: { color: c.muted, fontSize: 11, lineHeight: 16, marginTop: 7 }, googleHint: { color: c.muted, fontSize: 10, lineHeight: 15, textAlign: 'center', marginTop: 8 }, separator: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 17 }, separatorLine: { flex: 1, height: 1, backgroundColor: c.line }, separatorText: { color: c.muted, fontSize: 9, fontWeight: '800', letterSpacing: 1 }, googleButton: { minHeight: 47, borderRadius: 11, backgroundColor: c.panel, borderColor: c.line, borderWidth: 1, alignItems: 'center', justifyContent: 'center', marginTop: 13, paddingHorizontal: 12 }, googleButtonText: { color: c.text, fontSize: 10, letterSpacing: 0.8, fontWeight: '900', textAlign: 'center' }, message: { color: c.text, fontSize: 12, lineHeight: 18, marginTop: 9 }, disabled: { opacity: 0.55 },
-  dangerButton: { minHeight: 43, borderWidth: 1, borderColor: '#7C4941', borderRadius: 10, alignItems: 'center', justifyContent: 'center', marginTop: 13, paddingHorizontal: 10 }, dangerButtonText: { color: '#FF9A87', fontSize: 9, letterSpacing: 0.8, fontWeight: '900', textAlign: 'center' },
   deleteAccountCard: { backgroundColor: '#211715', borderColor: '#7C4941', borderWidth: 1, borderRadius: 16, padding: 16, marginTop: 24 }, deleteAccountButton: { minHeight: 45, borderRadius: 10, backgroundColor: '#7C3029', alignItems: 'center', justifyContent: 'center', marginTop: 13, paddingHorizontal: 10 }, deleteAccountButtonText: { color: '#FFF0ED', fontSize: 10, letterSpacing: 0.8, fontWeight: '900', textAlign: 'center' },
-  clearLocalLink: { minHeight: 38, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8, marginTop: 4 }, clearLocalLinkText: { color: '#FF9A87', fontSize: 8, letterSpacing: 0.4, fontWeight: '800', textAlign: 'center' },
 });
+

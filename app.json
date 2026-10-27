@@ -1,38 +1,41 @@
 {
   "expo": {
-    "name": "gym-tracker",
+    "name": "Progres",
     "slug": "gym-tracker",
-    "version": "1.0.0",
+    "version": "1.0.2",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/progres-icon.png",
     "scheme": "gymtracker",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "icon": "./assets/expo.icon",
+      "bundleIdentifier": "com.progres.gymtracker",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "com.progres.gymtracker",
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+        "backgroundColor": "#C4F36B",
+        "foregroundImage": "./assets/images/progres-foreground.png",
+        "monochromeImage": "./assets/images/progres-monochrome.png"
       },
       "predictiveBackGestureEnabled": false
     },
     "web": {
       "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/progres-icon.png"
     },
     "plugins": [
       "expo-router",
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#208AEF",
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 76
+          "backgroundColor": "#0D100E",
+          "image": "./assets/images/progres-icon.png",
+          "imageWidth": 100
         }
       ]
     ],
@@ -43,9 +46,9 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "896212e2-052c-4a2e-8fcb-dd7dd3313286"
+        "projectId": "d46dc696-5807-4b7f-98e8-5f51660c3e56"
       }
     },
-    "owner": "sajmon9696"
+    "owner": "sajmon96"
   }
 }

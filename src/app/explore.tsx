@@ -50,6 +50,8 @@ function buildProgress(entries: WorkoutEntry[], sessions: TrainingSession[], pla
     const day = plan?.days.find((candidate) => candidate.id === session.dayId);
     for (const completed of session.exercises) {
       const exercise = day?.exercises.find((candidate) => candidate.id === completed.exerciseId);
+      // The records screen compares repetitions and load; time, bands, and machines use different scales.
+      if ((completed.metric ?? exercise?.metric ?? 'load') !== 'load') continue;
       for (const set of completed.sets) addSet(completed.name ?? exercise?.name ?? 'Ćwiczenie', set.reps, set.weight, session.completedAt);
     }
   }

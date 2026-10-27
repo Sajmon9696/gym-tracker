@@ -1,3 +1,4 @@
+import WorkoutSync from '@/components/workout-sync';
 import { DarkTheme, DefaultTheme, Redirect, Stack, ThemeProvider, usePathname } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useColorScheme } from 'react-native';
@@ -12,10 +13,11 @@ function RootStack() {
   const colorScheme = useColorScheme();
   const pathname = usePathname();
   const { loading, session } = useAuth();
-  const isAccountRoute = pathname === '/account';
-  const isHomeRoute = pathname === '/';
+  // Publiczne informacje są dostępne także bez sesji i przez bezpośredni link.
+  const isPublicRoute = ['/', '/account', '/about', '/privacy', '/terms'].includes(pathname);
 
-  if (!loading && !session && !isAccountRoute && !isHomeRoute) return <Redirect href="/account"/>;
+
+  if (!loading && !session && !isPublicRoute) return <Redirect href="/account"/>;
 
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
@@ -26,7 +28,5 @@ function RootStack() {
 }
 
 export default function TabLayout() {
-  return <GestureHandlerRootView style={{ flex: 1 }}><AuthProvider><RootStack/></AuthProvider></GestureHandlerRootView>;
+  return <GestureHandlerRootView style={{ flex: 1 }}><AuthProvider><WorkoutSync/><RootStack/></AuthProvider></GestureHandlerRootView>;
 }
-
-

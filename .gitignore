@@ -45,3 +45,6 @@ example
 
 # Local Supabase CLI state (project linkage and temporary metadata)
 /supabase/.temp/
+
+# Downloaded release binaries
+/releases/
